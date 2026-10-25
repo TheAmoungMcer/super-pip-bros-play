@@ -9,6 +9,8 @@ export function createHost(sess) {
         if (h.conn === conn) h.silent = 0;
         if (m.t === 'hello') {
           if (m.v !== PROTOCOL_VERSION) { conn.send({ t: 'reject', reason: 'version' }); return; }
+          // Two players max: a third must not take over the current guest's seat.
+          if (h.connected && h.conn !== conn) { conn.send({ t: 'reject', reason: 'full' }); return; }
           h.conn = conn; h.connected = true; h.silent = 0; h.queue = []; h.lastB = 0; h.ack = -1; h.sent = { lv: null, n: 0 };
           addPlayer(h.sess);
           conn.send({ t: 'welcome', idx: 1 });

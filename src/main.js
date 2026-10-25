@@ -11,10 +11,10 @@ import { drawHud } from './draw/hud.js';
 import { drawGallery } from './draw/gallery.js';
 import { drawSession } from './draw/scenes.js';
 import { songFor } from './draw/present.js';
-import { createTitle, stepTitle, drawTitle, typeCode } from './ui/title.js';
+import { createTitle, stepTitle, drawTitle } from './ui/title.js';
 import { createHost } from './net/host.js';
 import { createGuest } from './net/guest.js';
-import { hostRoom, joinRoom } from './net/peer.js';
+import { playOnline } from './net/peer.js';
 import { WORLDS } from './game/session.js';
 import { fillNES } from './engine/render.js';
 import { drawText } from './draw/text.js';
@@ -86,18 +86,12 @@ function devRunner() {
 // The game: title -> save slot -> session (solo or hosting), or joining someone else's room.
 function game() {
   let mode = 'title', title = createTitle(listSaves(storage)), sess = null, slot = 0, song = '';
-  let host = null, guest = null, room = null, banner = '', bannerT = 0, roomCode = '', hadGuest = false;
+  let host = null, guest = null, room = null, banner = '', bannerT = 0, hadGuest = false;
   window.__game = { get mode() { return mode; }, get sess() { return sess; }, get title() { return title; }, get host() { return host; }, get guest() { return guest; }, get banner() { return banner; } };
-  const NAV = BTN.UP | BTN.DOWN | BTN.LEFT | BTN.RIGHT | BTN.START;
   window.addEventListener('pagehide', () => { if (guest) guest.leave(); });
   const focusLost = () => { if (mode === 'game' && sess) autoPause(sess); };
   window.addEventListener('blur', focusLost);
   document.addEventListener('visibilitychange', () => { if (document.hidden) focusLost(); });
-  window.addEventListener('keydown', (e) => {
-    if (mode !== 'title' || title.mode !== 'code') return;
-    if (e.key === 'Escape') title.mode = 'menu';
-    else typeCode(title, e.key);
-  });
   const begin = (players, saveSlot) => {
     const r = readSave(storage, saveSlot);
     sess = createSession({ players, seed: (Math.random() * 1e9) | 0, save: r.ok ? r.data : null });
@@ -115,29 +109,28 @@ function game() {
     keepAliveHidden: () => mode === 'host' || mode === 'join',
     onError: showError,
     step() {
-      const coding = mode === 'title' && title.mode === 'code';
-      const m = coding ? (input.readPads() | (input.readKeys() & NAV)) : input.read();
+      const m = input.read();
       if (mode === 'title') {
         const act = stepTitle(title, m);
-        if (act?.action === 'start' && act.next === 'host') {
-          begin(1, act.slot);
-          mode = 'host';
-          host = createHost(sess);
-          banner = 'OPENING ROOM...';
-          room = hostRoom({
-            onCode: (c) => { roomCode = c; banner = `ROOM ${c} - SHARE THIS CODE`; },
-            onGuest: (t) => host.attach(t),
-            onError: (msg) => { if (!host || !host.connected) banner = `${msg} - PLAYING SOLO`; },
+        if (act?.action === 'start' && act.next === 'online') {
+          // Until we know whether we host or join, show the connecting screen.
+          const slot = act.slot;
+          mode = 'join'; banner = 'GOING ONLINE...';
+          room = playOnline({
+            onHosting: () => {
+              begin(1, slot);
+              mode = 'host'; host = createHost(sess); hadGuest = false;
+              banner = 'ONLINE - WAITING FOR PLAYER 2';
+            },
+            onGuest: (t) => host && host.attach(t),
+            onJoined: (t) => { guest = createGuest(t, WORLDS); },
+            onError: (msg) => {
+              if (mode !== 'host') backToTitle(msg);
+              else if (!host.connected) banner = `${msg} - PLAYING SOLO`;
+            },
           });
         } else if (act?.action === 'start') begin(1, act.slot);
         else if (act?.action === 'erase') { eraseSave(storage, act.slot); title.saves = listSaves(storage); }
-        else if (act?.action === 'join') {
-          mode = 'join'; banner = `CONNECTING TO ${act.code}...`;
-          room = joinRoom(act.code, {
-            onConnected: (t) => { guest = createGuest(t, WORLDS); },
-            onError: (msg) => backToTitle(msg),
-          });
-        }
       } else if (mode === 'game') {
         stepSession(sess, [m, 0]);
         playEvents(sess.events);
@@ -147,14 +140,14 @@ function game() {
         playEvents(host.step(m));
         // A link only counts once the guest's hello arrives; until then it may still be a stray or a dud.
         if (host.connected && !hadGuest) { hadGuest = true; banner = 'PEP JOINED!'; bannerT = 180; }
-        if (!host.connected && hadGuest) { hadGuest = false; bannerT = 0; banner = `PEP LEFT - ROOM ${roomCode} STILL OPEN`; }
+        if (!host.connected && hadGuest) { hadGuest = false; bannerT = 0; banner = 'PEP LEFT - WAITING FOR PLAYER 2'; }
         if (bannerT > 0 && --bannerT === 0 && host.connected) banner = '';
         saveIfDirty();
         if (sess.quit) backToTitle();
       } else if (mode === 'join' && guest) {
         playEvents(guest.step(m));
         if (guest.status === 'closed') backToTitle(guest.reason === 'timeout' ? 'LOST CONNECTION TO HOST' : 'HOST LEFT THE GAME');
-        else if (guest.status === 'rejected') backToTitle('VERSION MISMATCH - RELOAD THE PAGE');
+        else if (guest.status === 'rejected') backToTitle(guest.reason === 'full' ? 'GAME IS FULL - TRY LATER' : 'VERSION MISMATCH - RELOAD THE PAGE');
       }
       const view = mode === 'join' ? guest && guest.view() : sess;
       const want = mode === 'title' ? 'title' : view ? songFor(view) : '';

@@ -6,4 +6,4 @@ playable build that GitHub Pages serves.
 **Play:** https://theamoungmcer.github.io/super-pip-bros-play/
 
 Controls: arrow keys move, Z or Space jumps, X runs / throws / tail spins, Enter pauses or opens items.
-Play together: one player picks HOST CO-OP and shares the 4-letter code; the other picks JOIN CO-OP and types it.
+Play together: both players pick PLAY ONLINE. The first one in hosts, the second joins automatically. No codes.

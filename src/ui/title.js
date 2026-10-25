@@ -1,17 +1,8 @@
 import { BTN } from '../game/consts.js';
 import { blit, fillNES } from '../engine/render.js';
 import { drawText } from '../draw/text.js';
-import { CODE_CHARS, normalizeCode } from '../net/peer.js';
 
-export function typeCode(tt, key) {
-  if (tt.mode !== 'code') return;
-  if (!tt.typed) { tt.code = ''; tt.typed = true; }
-  if (key === 'Backspace') tt.code = tt.code.slice(0, -1);
-  else if (/^[a-z]$/i.test(key)) tt.code = normalizeCode(tt.code + key);
-  tt.cursor = Math.min(3, tt.code.length);
-}
-
-export const TITLE_OPTIONS = ['1 PLAYER GAME', 'HOST CO-OP', 'JOIN CO-OP'];
+export const TITLE_OPTIONS = ['1 PLAYER GAME', 'PLAY ONLINE'];
 
 export function createTitle(saves) {
   return { t: 0, mode: 'menu', sel: 0, slot: 0, saves, confirm: false, prev: 0 };
@@ -28,24 +19,9 @@ export function stepTitle(tt, buttons) {
     if (p & (BTN.A | BTN.START)) {
       const name = TITLE_OPTIONS[tt.sel];
       if (name === '1 PLAYER GAME') { tt.mode = 'slots'; tt.next = 'solo'; return null; }
-      if (name === 'HOST CO-OP') { tt.mode = 'slots'; tt.next = 'host'; return null; }
-      if (name === 'JOIN CO-OP') { tt.mode = 'code'; tt.code = 'AAAA'; tt.cursor = 0; tt.typed = false; return null; }
+      if (name === 'PLAY ONLINE') { tt.mode = 'slots'; tt.next = 'online'; return null; }
       return { action: 'option', name };
     }
-    return null;
-  }
-  if (tt.mode === 'code') {
-    if (p & BTN.B) { tt.mode = 'menu'; return null; }
-    const i = tt.cursor, chars = CODE_CHARS;
-    const cycle = (d) => {
-      const k = (chars.indexOf(tt.code[i]) + d + chars.length) % chars.length;
-      tt.code = tt.code.slice(0, i) + chars[k] + tt.code.slice(i + 1);
-    };
-    if (p & BTN.UP) cycle(1);
-    if (p & BTN.DOWN) cycle(-1);
-    if (p & BTN.RIGHT) tt.cursor = Math.min(3, i + 1);
-    if (p & BTN.LEFT) tt.cursor = Math.max(0, i - 1);
-    if (p & (BTN.A | BTN.START) && tt.code.length === 4) return { action: 'join', code: tt.code };
     return null;
   }
   if (tt.mode === 'slots') {
@@ -76,14 +52,6 @@ export function drawTitle(ctx, tt) {
   blit(ctx, 'big.stand', 'pep', 144, 160, { flipX: true });
   if (tt.mode === 'menu') {
     TITLE_OPTIONS.forEach((o, i) => drawText(ctx, `${i === tt.sel ? '>' : ' '} ${o}`, 64, 112 + i * 14));
-  } else if (tt.mode === 'code') {
-    drawText(ctx, 'ENTER ROOM CODE', 68, 104);
-    for (let i = 0; i < 4; i++) {
-      const x = 96 + i * 18;
-      fillNES(ctx, 0x00, x - 2, 120, 14, 14);
-      if (i !== tt.cursor || (tt.t >> 4) & 1) drawText(ctx, tt.code[i] || '', x + 1, 123);
-    }
-    drawText(ctx, 'ENTER=JOIN  ESC=BACK', 48, 146);
   } else {
     tt.saves.forEach((s, i) => {
       const label = s.ok ? `WORLD ${s.summary.world} x${s.summary.lives}` : s.reason === 'unavailable' ? 'NO SAVING' : 'NEW GAME';
