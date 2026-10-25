@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Super Pip Bros.</title>
+<link rel="icon" href="data:,">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+  #msg { position: fixed; bottom: 8px; left: 0; right: 0; text-align: center; color: #888; font: 12px monospace; }
+</style>
+</head>
+<body>
+<canvas id="screen"></canvas>
+<div id="msg"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
