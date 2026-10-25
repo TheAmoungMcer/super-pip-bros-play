@@ -126,7 +126,7 @@ function game() {
           banner = 'OPENING ROOM...';
           room = hostRoom({
             onCode: (c) => { roomCode = c; banner = `ROOM ${c} - SHARE THIS CODE`; },
-            onGuest: (t) => { host.attach(t); hadGuest = true; banner = 'PEP JOINED!'; bannerT = 180; },
+            onGuest: (t) => host.attach(t),
             onError: (msg) => { if (!host || !host.connected) banner = `${msg} - PLAYING SOLO`; },
           });
         } else if (act?.action === 'start') begin(1, act.slot);
@@ -145,6 +145,8 @@ function game() {
         if (sess.quit) backToTitle();
       } else if (mode === 'host') {
         playEvents(host.step(m));
+        // A link only counts once the guest's hello arrives; until then it may still be a stray or a dud.
+        if (host.connected && !hadGuest) { hadGuest = true; banner = 'PEP JOINED!'; bannerT = 180; }
         if (!host.connected && hadGuest) { hadGuest = false; bannerT = 0; banner = `PEP LEFT - ROOM ${roomCode} STILL OPEN`; }
         if (bannerT > 0 && --bannerT === 0 && host.connected) banner = '';
         saveIfDirty();
